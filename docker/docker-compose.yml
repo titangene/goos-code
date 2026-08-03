@@ -1,0 +1,26 @@
+services:
+  openfire:
+    image: ghcr.io/igniterealtime/openfire:latest
+    hostname: localhost
+    ports:
+      - "9090:9090"   # admin console (setup wizard)
+      - "5222:5222"   # XMPP client port used by the tests
+    volumes:
+      - openfire-data:/var/lib/openfire
+
+  # Runs with network_mode: service:openfire so that "localhost" inside this
+  # container reaches Openfire directly -- the test/production code hardcodes
+  # XMPP_HOSTNAME = "localhost", so this avoids having to patch the sources.
+  toolbox:
+    build:
+      context: ..
+      dockerfile: docker/toolbox.Dockerfile
+    network_mode: "service:openfire"
+    volumes:
+      - ..:/app
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw   # lets the Swing app show on the host's X display
+    working_dir: /app
+    command: ["sleep", "infinity"]
+
+volumes:
+  openfire-data:

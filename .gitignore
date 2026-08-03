@@ -1,0 +1,5 @@
+build/
+build-docker/
+docker/tools/*.class
+docker/node_modules/
+auction-sniper.log*
