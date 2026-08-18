@@ -126,7 +126,13 @@ app 視窗開起來後，要能實際搶標，需要有東西扮演拍賣現場 
 
 ### 手動模擬完整拍賣流程
 
-`docker/tools/FakeAuction.java` 是一個互動式的假拍賣現場，用跟測試碼 `FakeAuctionServer` 一樣的協定 (`SOLVersion: 1.1; Event: PRICE; ...`)登入 `auction-<itemId>@localhost` 這個帳號，讓你在終端機手動打指令、即時觀察 app 視窗的反應。
+`docker/tools/FakeAuction.java` 是一個互動式的假拍賣現場，用跟測試碼 `FakeAuctionServer` 一樣的協定 (`SOLVersion: 1.1; Event: PRICE; ...`) 登入 `auction-<itemId>@localhost` 這個帳號，讓你在終端機手動打指令、即時觀察 app 視窗的反應。
+
+輸入格式是 SOL 訊息本身的內容，只省略固定不變的 `SOLVersion: 1.1; ` 前綴 (工具會自動幫你補上)，例如輸入 `Event: CLOSE;` 實際發出的就是 `SOLVersion: 1.1; Event: CLOSE;`。
+
+**Bidder 欄位的正確寫法**
+
+模擬「別人喊價」時，`Bidder` 欄位可以隨便填一個不是你自己 JID 的字串 (例如 `other bidder`)。但模擬「自己出的價成交」時，`Bidder` 欄位**必須填完整 JID**，格式是 `<sniperId>@localhost/Auction`；app 預設用 `sniper` 這個帳號登入時就是 `sniper@localhost/Auction`。只填 `sniper` (不含 `@localhost/Auction`) 會被判定成別人出的價，導致 sniper 誤判成 **Losing** 而不是預期的 **Winning** (見 `AuctionMessageTranslator.isFrom()`)。
 
 **1. 開一個新的終端機分頁，啟動假拍賣現場 (扮演 `item-54321` 的賣家)：**
 
@@ -135,7 +141,7 @@ cd docker
 ./scripts/fake-auction.sh item-54321
 ```
 
-會印出 `Logged in as auction-item-54321@localhost. Waiting for a sniper to join...`
+會印出 `Selling item item-54321 as auction-item-54321@localhost/Auction. Waiting for a sniper to join...`
 
 **2. 回到 app 視窗**，在 Item ID 欄位填 `item-54321`、Stop Price 欄位填一個數字 (例如 `100`)，按 **Join Auction**。假拍賣現場那邊的終端機會印出 `Sniper joined: sniper@localhost/Auction`，代表連上了。App 則會多一列，State 為 **Joining**：
 
@@ -144,17 +150,17 @@ cd docker
 **3. 模擬別人喊價**，在 `scripts/fake-auction.sh` 的終端機輸入：
 
 ```
-price 90 5 other bidder
+Event: PRICE; CurrentPrice: 90; Increment: 5; Bidder: other bidder;
 ```
 
-App 那邊 State 應該變成 **Bidding** (90 沒超過停止價 100，AuctionSniper 會自動幫你出價 `90+5=95`)，終端機也會印出收到的訊息 `< received: SOLVersion: 1.1; Command: BID; Price: 95;`
+App 那邊 State 應該變成 **Bidding** (90 沒超過停止價 100，AuctionSniper 會自動幫你出價 `90+5=95`)，終端機也會印出收到的訊息 `< received: Bid 95 from sniper@localhost/Auction`。
 
 ![](images/step3.png)
 
-**4. 模擬你出的價成交** (把價格回報成你剛剛出的價、bidder 標成你自己)：
+**4. 模擬你出的價成交** (把價格回報成你剛剛出的價、`Bidder` 標成你自己的完整 JID)：
 
 ```
-price 95 10 sniper@localhost/Auction
+Event: PRICE; CurrentPrice: 95; Increment: 10; Bidder: sniper@localhost/Auction;
 ```
 
 State 應該變成 **Winning**。
@@ -164,7 +170,7 @@ State 應該變成 **Winning**。
 **5. 模擬別人加價超過你的停止價，讓你輸掉：**
 
 ```
-price 105 5 other bidder
+Event: PRICE; CurrentPrice: 105; Increment: 5; Bidder: other bidder;
 ```
 
 105 超過停止價 100，AuctionSniper 不會再出價，State 會變 **Losing**。
@@ -174,7 +180,7 @@ price 105 5 other bidder
 **6. 結束拍賣：**
 
 ```
-close
+Event: CLOSE;
 ```
 
 目前是 Winning 就會變 **Won**，是 Losing 就會變 **Lost**。
@@ -189,26 +195,32 @@ quit
 
 想同時跑 `item-65432` 那組流程，開另一個終端機分頁執行 `./scripts/fake-auction.sh item-65432`，app 那邊也輸入對應的 item id 加入即可，兩組可以同時跑，互不影響。
 
-以下是跑過 `scripts/fake-auction.sh` 以上流程 console：
+以下是跑過 `scripts/fake-auction.sh` 以上流程的 console：
 
 ```shell
 $ ./scripts/fake-auction.sh item-54321
-Logged in as auction-item-54321@localhost. Waiting for a sniper to join...
-Commands: price <currentPrice> <increment> [bidder] | close | quit
+Selling item item-54321 as auction-item-54321@localhost/Auction. Waiting for a sniper to join...
+Type a SOL message body (without the "SOLVersion: 1.1; " prefix) to send it, e.g.:
+  Event: PRICE; CurrentPrice: 90; Increment: 5; Bidder: other bidder;
+  Event: CLOSE;
+Type "quit" to disconnect and exit.
+
 > Sniper joined: sniper@localhost/Auction
-< received: SOLVersion: 1.1; Command: JOIN;
-Sniper joined: sniper@localhost/Auction
-< received: SOLVersion: 1.1; Command: JOIN;
-price 90 5 other bidder
-> sent: SOLVersion: 1.1; Event: PRICE; CurrentPrice: 90; Increment: 5; Bidder: other;
-> < received: SOLVersion: 1.1; Command: BID; Price: 95;
-price 95 10 sniper@localhost/Auction
+
+>>> Event: PRICE; CurrentPrice: 90; Increment: 5; Bidder: other bidder;
+> sent: SOLVersion: 1.1; Event: PRICE; CurrentPrice: 90; Increment: 5; Bidder: other bidder;
+< received: Bid 95 from sniper@localhost/Auction
+
+>>> Event: PRICE; CurrentPrice: 95; Increment: 10; Bidder: sniper@localhost/Auction;
 > sent: SOLVersion: 1.1; Event: PRICE; CurrentPrice: 95; Increment: 10; Bidder: sniper@localhost/Auction;
-> price 105 5 other bidder
-> sent: SOLVersion: 1.1; Event: PRICE; CurrentPrice: 105; Increment: 5; Bidder: other;
-> close
+
+>>> Event: PRICE; CurrentPrice: 105; Increment: 5; Bidder: other bidder;
+> sent: SOLVersion: 1.1; Event: PRICE; CurrentPrice: 105; Increment: 5; Bidder: other bidder;
+
+>>> Event: CLOSE;
 > sent: SOLVersion: 1.1; Event: CLOSE;
-> quit
+
+>>> quit
 ```
 
 ## Openfire 帳號
