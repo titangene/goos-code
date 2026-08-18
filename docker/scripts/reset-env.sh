@@ -5,10 +5,5 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-echo "== tearing down containers =="
-sudo docker compose down
-
-echo "== wiping openfire data volume =="
-sudo docker volume rm docker_openfire-data
-
+./scripts/stop-env.sh
 ./scripts/start-env.sh

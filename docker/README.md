@@ -20,7 +20,8 @@
 | `scripts/run-tests.sh` | 在 `toolbox` 容器內編譯並執行 unit / integration / end-to-end 三套測試 |
 | `scripts/start-env.sh` | 啟動容器、跑 `setup-openfire.js`，把整個環境準備好 |
 | `scripts/test.sh` | 呼叫 `scripts/run-tests.sh` 跑測試 |
-| `scripts/reset-env.sh` | 砍掉容器、清空 Openfire 資料，重新呼叫 `scripts/start-env.sh` |
+| `scripts/stop-env.sh` | 停止並移除目前跑起來的容器 (openfire + toolbox)，並清空 Openfire 資料 volume |
+| `scripts/reset-env.sh` | 呼叫 `scripts/stop-env.sh` 砍掉容器 + 清空資料，再呼叫 `scripts/start-env.sh` 重建 |
 | `scripts/run-app.sh` | 在 `toolbox` 容器內編譯並執行 Auction Sniper 這個 Swing app，視窗顯示在主機螢幕上 |
 | `tools/FakeAuction.java` | 互動式假拍賣現場，模擬 `FakeAuctionServer` 的協定，讓你手動送出價格/結標事件 |
 | `scripts/fake-auction.sh` | 編譯並執行 `tools/FakeAuction.java` |
@@ -83,6 +84,14 @@ OK (6 tests)
 == all suites finished ==
 ```
 
+### 停止目前跑起來的環境
+
+```bash
+./scripts/stop-env.sh
+```
+
+把 `openfire`、`toolbox` 容器停掉並移除，也會清空 Openfire 的資料 volume (`docker compose down` + `docker volume rm docker_openfire-data`)。之後要重新啟動用 `./scripts/start-env.sh`，帳號會透過 `setup-openfire.js` 重新建立。
+
 ### 環境設定壞掉、想砍掉重建
 
 ```bash
@@ -92,8 +101,7 @@ OK (6 tests)
 等同執行：
 
 ```bash
-sudo docker compose down
-sudo docker volume rm docker_openfire-data
+./scripts/stop-env.sh
 ./scripts/start-env.sh
 ```
 
