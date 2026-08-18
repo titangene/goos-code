@@ -1,5 +1,6 @@
 build/
 build-docker/
+bin/
 docker/tools/*.class
 docker/node_modules/
 auction-sniper.log*
